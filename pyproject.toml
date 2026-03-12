@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gge-oracle"
+version = "1.0.0"
+description = "A tool for archiving player history on GGE"
+
+dependencies = ["websockets==16.0", "PyDrive2==1.21.3", "Quart==0.20.0"]
