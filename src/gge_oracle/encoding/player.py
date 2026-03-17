@@ -1,5 +1,5 @@
 import io
-from typing import IO
+from typing import IO, Generator
 
 from gge_oracle.typings import CoatOfArms, Location, PlayerDocument
 
@@ -43,14 +43,60 @@ def unpack_coat_of_arms(coat_of_arms: CoatOfArms | None) -> list[int] | None:
     ]
 
 
+class Index:
+    def __init__(self) -> None:
+        self._index: dict[str, dict[int, int | None]] = {}
+
+    def add(self, key: tuple[int, str], value: tuple[int, int]) -> None:
+        start, size = value
+        packed = (start << 32) | (size << 1)
+        self._add(key, packed)
+
+    def get(self, key: tuple[int, str]) -> tuple[int, int] | None:
+        player_id, server = key
+        try:
+            packed = self._index[server][player_id]
+            # Treat None as invalid key because it is only for
+            # indicating that it has been used
+            if packed is None:
+                raise KeyError
+            return self._unpack_data(packed)
+        except KeyError:
+            return None
+
+    def use(self, key: tuple[int, str]) -> bool:
+        player_id, server = key
+        try:
+            packed = self._index[server][player_id]
+            if packed is None or (packed & 1):
+                return True
+            # This should be always int at runtime
+            self._index[server][player_id] |= 1  # type: ignore
+            return False
+        except KeyError:
+            self._add(key, None)
+            return False
+
+    def use_all(self) -> Generator[tuple[int, int], None, None]:
+        for server, server_dict in self._index.items():
+            for player_id, packed in server_dict.items():
+                if packed is not None and not self.use((player_id, server)):
+                    # Have not been used
+                    yield self._unpack_data(packed)
+
+    def _add(self, key: tuple[int, str], value: int | None) -> None:
+        player_id, server = key
+        self._index.setdefault(server, {}).setdefault(player_id, value)
+
+    def _unpack_data(self, packed: int) -> tuple[int, int]:
+        return packed >> 32, (packed >> 1) & 0x7fffffff
+
+
 class Updater:
     def __init__(self, current: IO[bytes], out: IO[bytes]) -> None:
         self._stream = current
         self._out_stream = out
-
-        # {(id, server): (start pos, size)}
-        self._index: dict[tuple[int, str], tuple[int, int]] = {}
-        self._used_documents: set[tuple[int, str]] = set()
+        self._index = Index()
 
     def init(self) -> None:
         # Get end pos
@@ -67,7 +113,7 @@ class Updater:
             # Create index
             player_id = interface.get_id()
             server = interface.get_server()
-            self._index.setdefault(
+            self._index.add(
                 (player_id, server),
                 (start, next_pos - start),
             )
@@ -76,13 +122,12 @@ class Updater:
 
     def update(self, document: PlayerDocument) -> None:
         key = (document["id"], document["server"])
-        if key in self._used_documents:
+        if self._index.use(key):
             return  # Already updated
-        self._used_documents.add(key)
 
-        if key in self._index:
-            start, _ = self._index[key]
-            self._stream.seek(start)
+        value = self._index.get(key)
+        if value is not None:
+            self._stream.seek(value[0])
             interface = StreamInterface(self._stream)
             # Move pass the header
             interface.get_size()
@@ -98,12 +143,8 @@ class Updater:
             self._update_player(document, interface)
 
     def finalize(self) -> None:
-        for key, (start, size) in self._index.items():
-            if key in self._used_documents:
-                continue
-            self._used_documents.add(key)
-
-            # Copy data to output stream
+        # Copy data to output stream if they haven't been updated
+        for start, size in self._index.use_all():
             self._stream.seek(start)
             data = self._stream.read(size)
             self._out_stream.write(data)
