@@ -21,6 +21,12 @@ class FetcherConfig(TypedDict):
     timeout: float
 
 
+class LoggerConfig(TypedDict):
+    name: str | None
+    level: int
+
+
 class Config(TypedDict):
     client: ClientConfig
     fetcher: FetcherConfig
+    logging: list[LoggerConfig]

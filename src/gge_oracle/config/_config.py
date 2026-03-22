@@ -51,3 +51,7 @@ class Config:
     @property
     def fetch_timeout(self) -> float:
         return self._config["fetcher"]["timeout"]
+
+    @property
+    def logging(self) -> list[_typings.LoggerConfig]:
+        return self._config["logging"]
