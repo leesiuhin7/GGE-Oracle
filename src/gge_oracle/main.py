@@ -44,6 +44,13 @@ def set_fetcher_config(config: Config) -> None:
     fetcher_config.set_silence_timeout(config.client_timeout)
 
 
+def set_logging_config(config: Config) -> None:
+    for logger_config in config.logging:
+        logging.getLogger(
+            logger_config["name"],
+        ).setLevel(logger_config["level"])
+
+
 async def update(context: Context) -> None:
     config = context.config
     file_id = context.file_id
@@ -94,6 +101,7 @@ async def main() -> None:
 
     # Config
     config = Config.from_file(os.path.abspath(CONFIG_FILEPATH))
+    set_logging_config(config)
     set_fetcher_config(config)
 
     manager = Manager()
@@ -117,6 +125,9 @@ async def main() -> None:
             ))
         except Exception as e:
             logger.exception(e)
+        else:
+            logger.info(
+                f"Update succeeded in {time.perf_counter() - start:.2f}s.")
 
         # Enfore interval
         await asyncio.sleep(
