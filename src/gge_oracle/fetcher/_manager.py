@@ -55,10 +55,13 @@ class Manager:
         )
 
         try:
-            async with asyncio.timeout(timeout):
-                # Consume until EOF
-                while (document := await queue.get()) is not None:
-                    yield document
+            end_time = time.perf_counter() + timeout
+            # Consume until EOF or timeout
+            while (document := await asyncio.wait_for(
+                queue.get(),
+                end_time - time.perf_counter(),
+            )) is not None:
+                yield document
         except asyncio.TimeoutError:
             pass
 
