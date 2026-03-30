@@ -50,9 +50,14 @@ class Manager:
             return_exceptions=True,
         )
         # Signal EOF with None after all tasks are done
-        waiter_future.add_done_callback(
-            lambda _: asyncio.create_task(queue.put(None)),
-        )
+        flag = asyncio.Event()
+
+        async def signal_EOF() -> None:
+            await flag.wait()
+            await queue.put(None)
+
+        eof_task = asyncio.create_task(signal_EOF())
+        waiter_future.add_done_callback(lambda _: flag.set())
 
         try:
             end_time = time.perf_counter() + timeout
@@ -66,7 +71,7 @@ class Manager:
             pass
 
         # Collect tasks in case they raised exceptions
-        await cancel_futures(waiter_future)
+        await cancel_futures(waiter_future, eof_task)
 
     async def _consume_msgs(
         self,
