@@ -65,16 +65,20 @@ async def update(context: Context) -> None:
     # Create data directory if it doesn't exist
     os.makedirs(DATA_DIR, exist_ok=True)
 
-    storage.download(file_id, INPUT_FILEPATH)
+    await asyncio.to_thread(storage.download, file_id, INPUT_FILEPATH)
     # Decompress first to improve access speed
-    utils.decompress_file(INPUT_FILEPATH, DECOMPRESSED_INPUT_FILEPATH)
+    await asyncio.to_thread(
+        utils.decompress_file,
+        INPUT_FILEPATH,
+        DECOMPRESSED_INPUT_FILEPATH,
+    )
 
     with (
         open(DECOMPRESSED_INPUT_FILEPATH, "rb") as input_file,
         lzma.open(OUTPUT_FILEPATH, "wb") as output_file
     ):
         updater = Updater(input_file, output_file)
-        updater.init()
+        await asyncio.to_thread(updater.init)
 
         async for player_info in manager.fetch_player_info(
             config.fetch_timeout,
@@ -82,9 +86,10 @@ async def update(context: Context) -> None:
         ):
             await asyncio.to_thread(updater.update, document=player_info)
 
-        updater.finalize()
+        await asyncio.to_thread(updater.finalize)
 
-    storage.upload(file_id, OUTPUT_FILEPATH)  # Save output
+    # Save output
+    await asyncio.to_thread(storage.upload, file_id, OUTPUT_FILEPATH)
 
 
 async def main() -> None:
