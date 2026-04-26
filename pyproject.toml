@@ -1,10 +1,14 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.13,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+module-name = "gge_oracle.updater.native"
 
 [project]
 name = "gge-oracle"
 version = "1.0.0"
 description = "A tool for archiving player history on GGE"
+requires-python = ">=3.8"
 
 dependencies = ["websockets==16.0", "PyDrive2==1.21.3", "Quart==0.20.0"]
