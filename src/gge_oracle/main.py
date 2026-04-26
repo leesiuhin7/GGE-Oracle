@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import lzma
 import os
 import time
 from dataclasses import dataclass
@@ -9,10 +8,10 @@ import quart
 
 from gge_oracle import utils
 from gge_oracle.config import Config
-from gge_oracle.encoding import Updater
 from gge_oracle.fetcher import Manager
 from gge_oracle.fetcher import config as fetcher_config
 from gge_oracle.storage import Storage
+from gge_oracle.updater import Updater
 
 logger = logging.getLogger(__name__)
 
@@ -73,20 +72,16 @@ async def update(context: Context) -> None:
         DECOMPRESSED_INPUT_FILEPATH,
     )
 
-    with (
-        open(DECOMPRESSED_INPUT_FILEPATH, "rb") as input_file,
-        lzma.open(OUTPUT_FILEPATH, "wb") as output_file
-    ):
-        updater = Updater(input_file, output_file)
-        await asyncio.to_thread(updater.init)
-
+    updater = Updater(
+        DECOMPRESSED_INPUT_FILEPATH,
+        OUTPUT_FILEPATH,
+    )
+    async with updater:
         async for player_info in manager.fetch_player_info(
             config.fetch_timeout,
             max_buffer=1000,  # Limit memory usage
         ):
             await asyncio.to_thread(updater.update, document=player_info)
-
-        await asyncio.to_thread(updater.finalize)
 
     # Save output
     await asyncio.to_thread(storage.upload, file_id, OUTPUT_FILEPATH)

@@ -1,0 +1,12 @@
+[package]
+name = "updater"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "updater"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.28.2", features = ["abi3-py38"] }
+xz2 = "0.1.7"
