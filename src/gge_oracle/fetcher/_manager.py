@@ -3,7 +3,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Awaitable, Callable
 
-from gge_oracle.typings import PlayerDocument
+from gge_oracle.updater import typings
 from gge_oracle.utils import cancel_futures
 
 from ._client import Client
@@ -40,8 +40,10 @@ class Manager:
         self,
         timeout: float,
         max_buffer: int = 0,
-    ) -> AsyncGenerator[PlayerDocument, None]:
-        queue: asyncio.Queue[PlayerDocument | None] = asyncio.Queue(max_buffer)
+    ) -> AsyncGenerator[typings.Document, None]:
+        queue: asyncio.Queue[typings.Document | None] = (
+            asyncio.Queue(max_buffer)
+        )
         waiter_future = asyncio.gather(
             *(
                 self._consume_msgs(collection, queue.put)
@@ -76,7 +78,7 @@ class Manager:
     async def _consume_msgs(
         self,
         collection: ClientCollection,
-        emit: Callable[[PlayerDocument], Awaitable[Any]],
+        emit: Callable[[typings.Document], Awaitable[Any]],
     ) -> None:
         server = collection.config.server
         async for msg in await collection.client.fetch_msgs():

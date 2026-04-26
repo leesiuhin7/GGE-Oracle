@@ -1,17 +1,8 @@
 import json
 import logging
 
-from gge_oracle.typings import (
-    BasicAlliance,
-    BasicPlayer,
-    CastleTimers,
-    CoatOfArms,
-    Faction,
-    Location,
-    Player,
-    PlayerDocument,
-    ServerResponseContent,
-)
+from gge_oracle.typings import Player, ServerResponseContent
+from gge_oracle.updater import typings
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +20,7 @@ def unpack_player_info(
     msg: str,
     server: str,
     timestamp: int,
-) -> list[PlayerDocument]:
+) -> list[typings.Document]:
     try:
         data = _extract_data(msg)
         json_data: ServerResponseContent = json.loads(data)
@@ -53,7 +44,7 @@ def _unpack_player(
     player: Player,
     server: str,
     timestamp: int,
-) -> PlayerDocument:
+) -> typings.Document:
     """
     Extract player information from the inputs.
 
@@ -67,7 +58,7 @@ def _unpack_player(
     :return: The extracted player information
     :rtype: PlayerDocument
     """
-    basic_player = BasicPlayer(
+    basic_player = typings.BasicPlayer(
         name=player.get("N"),
         level=player.get("L"),
         legendary_level=player.get("LL"),
@@ -78,25 +69,25 @@ def _unpack_player(
         ruins=player.get("R"),
     )
 
-    basic_alliance = BasicAlliance(
+    basic_alliance = typings.BasicAlliance(
         id=player.get("AID"),
         name=player.get("AN"),
         rank_id=player.get("AR"),
         searching=player.get("SA"),
     )
 
-    timers = CastleTimers(
+    timers = typings.CastleTimers(
         protection_time=player.get("RPT"),
         relocate_time=player.get("RRD"),
     )
 
     locations = [
-        Location(
+        typings.Location(
             kingdom_id=location[0],
             id=location[1],
             x=location[2],
             y=location[3],
-            type=location[4],
+            location_type=location[4],
         )
         for location in player.get("AP", [])
         if (
@@ -109,7 +100,7 @@ def _unpack_player(
         )
     ] if "AP" in player else None
 
-    coat_of_arms = CoatOfArms(
+    coat_of_arms = typings.CoatOfArms(
         bg_type=player["E"]["BGT"],
         bg_color1=player["E"]["BGC1"],
         bg_color2=player["E"]["BGC2"],
@@ -121,7 +112,7 @@ def _unpack_player(
     ) if "E" in player else None
 
     faction_dict = player.get("FN", {})
-    faction = Faction(
+    faction = typings.Faction(
         faction_id=faction_dict.get("FID"),
         title_id=faction_dict.get("TID"),
         self_protection_time=faction_dict.get("NS"),
@@ -131,14 +122,14 @@ def _unpack_player(
         special_camp_id=faction_dict.get("SPC"),
     )
 
-    return {
-        "id": player["OID"],
-        "server": server,
-        "timestamp": timestamp,
-        "basic": basic_player,
-        "alliance": basic_alliance,
-        "timers": timers,
-        "locations": locations,
-        "coat_of_arms": coat_of_arms,
-        "faction": faction,
-    }
+    return typings.Document(
+        id=player["OID"],
+        server=server,
+        timestamp=timestamp,
+        basic=basic_player,
+        alliance=basic_alliance,
+        timers=timers,
+        locations=locations,
+        coat_of_arms=coat_of_arms,
+        faction=faction,
+    )
