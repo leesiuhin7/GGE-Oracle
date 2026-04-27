@@ -4,6 +4,7 @@ import os
 import time
 from dataclasses import dataclass
 
+import psutil
 import quart
 
 from gge_oracle import utils
@@ -113,6 +114,15 @@ async def main() -> None:
 
     PORT = int(os.environ.get("PORT", 10000))
     app_task = asyncio.create_task(app.run_task(host="0.0.0.0", port=PORT))
+
+    process = psutil.Process(os.getpid())
+
+    async def log_rss_loop():
+        while True:
+            logger.info(process.memory_info().rss)
+            await asyncio.sleep(5)
+
+    log_rss_task = asyncio.create_task(log_rss_loop())
 
     while True:
         start = time.perf_counter()

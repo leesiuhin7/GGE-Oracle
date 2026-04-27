@@ -11,4 +11,4 @@ version = "1.0.0"
 description = "A tool for archiving player history on GGE"
 requires-python = ">=3.8"
 
-dependencies = ["websockets==16.0", "PyDrive2==1.21.3", "Quart==0.20.0"]
+dependencies = ["websockets==16.0", "PyDrive2==1.21.3", "Quart==0.20.0", "psutil==7.2.2"]
