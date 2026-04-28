@@ -14,5 +14,8 @@ class Updater:
     async def __aexit__(self, exc_type, exc, tb):
         return await asyncio.to_thread(self._updater.__exit__, exc_type, exc, tb)
 
+    def __del__(self) -> None:
+        del self._updater
+
     def update(self, document: typings.Document) -> None:
         self._updater.update(document)
