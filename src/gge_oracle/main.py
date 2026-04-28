@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import time
-import tracemalloc
 from dataclasses import dataclass
 
 import psutil
@@ -85,8 +84,19 @@ async def update(context: Context) -> None:
         ):
             await asyncio.to_thread(updater.update, document=player_info)
 
+    process = psutil.Process(os.getpid())
+    logger.info(f"After __exit__ RSS: {process.memory_info().rss}")
+
+    import gc
+
+    del updater
+    gc.collect()
+    logger.info(f"After gc RSS: {process.memory_info().rss}")
+
     # Save output
     await asyncio.to_thread(storage.upload, file_id, OUTPUT_FILEPATH)
+
+    logger.info(f"After upload RSS: {process.memory_info().rss}")
 
 
 async def main() -> None:
@@ -116,14 +126,12 @@ async def main() -> None:
     PORT = int(os.environ.get("PORT", 10000))
     app_task = asyncio.create_task(app.run_task(host="0.0.0.0", port=PORT))
 
-    tracemalloc.start()
     process = psutil.Process(os.getpid())
 
     async def log_rss_loop():
         while True:
             rss = process.memory_info().rss
-            current, peak = tracemalloc.get_traced_memory()
-            logger.info(f"RSS: {rss} Current: {current}, peak: {peak}")
+            logger.info(f"RSS: {rss}")
             await asyncio.sleep(30)
 
     log_rss_task = asyncio.create_task(log_rss_loop())
