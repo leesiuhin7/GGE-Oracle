@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import time
+import tracemalloc
 from dataclasses import dataclass
 
 import psutil
@@ -115,12 +116,15 @@ async def main() -> None:
     PORT = int(os.environ.get("PORT", 10000))
     app_task = asyncio.create_task(app.run_task(host="0.0.0.0", port=PORT))
 
+    tracemalloc.start()
     process = psutil.Process(os.getpid())
 
     async def log_rss_loop():
         while True:
-            logger.info(process.memory_info().rss)
-            await asyncio.sleep(5)
+            rss = process.memory_info().rss
+            current, peak = tracemalloc.get_traced_memory()
+            logger.info(f"RSS: {rss} Current: {current}, peak: {peak}")
+            await asyncio.sleep(30)
 
     log_rss_task = asyncio.create_task(log_rss_loop())
 
