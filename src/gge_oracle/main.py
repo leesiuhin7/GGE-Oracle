@@ -73,30 +73,22 @@ async def update(context: Context) -> None:
         DECOMPRESSED_INPUT_FILEPATH,
     )
 
+    await asyncio.sleep(60)
+    process = psutil.Process(os.getpid())
+    logger.info(f"Before creation RSS: {process.memory_info().rss}")
+
     updater = Updater(
         DECOMPRESSED_INPUT_FILEPATH,
         OUTPUT_FILEPATH,
     )
-    async with updater:
-        async for player_info in manager.fetch_player_info(
-            config.fetch_timeout,
-            max_buffer=1000,  # Limit memory usage
-        ):
-            await asyncio.to_thread(updater.update, document=player_info)
-
-    process = psutil.Process(os.getpid())
-    logger.info(f"After __exit__ RSS: {process.memory_info().rss}")
+    logger.info(f"Before __enter__ RSS: {process.memory_info().rss}")
+    await updater.__aenter__()
+    logger.info(f"After __enter__ RSS: {process.memory_info().rss}")
 
     import gc
-
     del updater
     gc.collect()
-    logger.info(f"After gc RSS: {process.memory_info().rss}")
-
-    # Save output
-    await asyncio.to_thread(storage.upload, file_id, OUTPUT_FILEPATH)
-
-    logger.info(f"After upload RSS: {process.memory_info().rss}")
+    logger.info(f"After clean up RSS: {process.memory_info().rss}")
 
 
 async def main() -> None:
