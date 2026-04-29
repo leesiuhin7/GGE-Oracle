@@ -87,7 +87,6 @@ async def update(context: Context) -> None:
         config.fetch_timeout,
         max_buffer=1000,
     ):
-        updater.update(player_info)
         await asyncio.sleep(0)
 
     logger.info(f"After update RSS: {process.memory_info().rss}")
