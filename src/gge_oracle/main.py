@@ -65,36 +65,16 @@ async def update(context: Context) -> None:
     # Create data directory if it doesn't exist
     os.makedirs(DATA_DIR, exist_ok=True)
 
-    await asyncio.to_thread(storage.download, file_id, INPUT_FILEPATH)
-    # Decompress first to improve access speed
-    await asyncio.to_thread(
-        utils.decompress_file,
-        INPUT_FILEPATH,
-        DECOMPRESSED_INPUT_FILEPATH,
-    )
-
-    await asyncio.sleep(60)
     process = psutil.Process(os.getpid())
-    logger.info(f"Before creation RSS: {process.memory_info().rss}")
+    logger.info(f"Before fetch RSS: {process.memory_info().rss}")
 
-    updater = Updater(
-        DECOMPRESSED_INPUT_FILEPATH,
-        OUTPUT_FILEPATH,
-    )
-    logger.info(f"Before __enter__ RSS: {process.memory_info().rss}")
-    await updater.__aenter__()
     async for player_info in manager.fetch_player_info(
         config.fetch_timeout,
         max_buffer=1000,
     ):
         await asyncio.sleep(0)
 
-    logger.info(f"After update RSS: {process.memory_info().rss}")
-
-    import gc
-    del updater
-    gc.collect()
-    logger.info(f"After clean up RSS: {process.memory_info().rss}")
+    logger.info(f"After fetch RSS: {process.memory_info().rss}")
 
 
 async def main() -> None:
