@@ -78,6 +78,7 @@ mod native {
         }
 
         fn update(&mut self, document: Document) -> PyResult<()> {
+            return Ok(());
             self.core
                 .as_mut()
                 .ok_or(PyValueError::new_err(
