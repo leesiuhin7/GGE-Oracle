@@ -22,6 +22,9 @@ FROM python:3.11-slim
 
 WORKDIR /usr/src/app
 
+RUN apt-get update && apt-get install -y libjemalloc2
+ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+
 COPY --from=builder /usr/src/app/wheels wheels
 
 RUN pip install ./wheels/*.whl
