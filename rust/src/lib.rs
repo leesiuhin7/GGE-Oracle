@@ -47,47 +47,59 @@ mod native {
             }
         }
 
-        fn __enter__(&mut self) -> PyResult<()> {
+        fn __enter__(&mut self, py: Python<'_>) -> PyResult<()> {
             let mut updater = updater_core::Updater::new();
             updater.set_input_buffer(BufReader::new(File::open(&*self.input_filename)?));
             updater.set_output_buffer(XzEncoder::new(
                 BufWriter::new(File::create(&*self.output_filename)?),
                 6,
             ));
-            updater.init().map_err(|error| {
+
+            let mut result = Ok(());
+            // Release GIL as init is CPU-bound
+            py.detach(|| {
+                result = updater.init();
+            });
+            result.map_err(|error| {
                 PyRuntimeError::new_err(format!("Cannot initialize object: {error:?}"))
             })?;
+
             self.core = Some(updater); // Lazy initialization
             Ok(())
         }
 
         // Using *args due to difficulty implementing the typical signature of __exit__
         #[pyo3(signature = (*_args))]
-        fn __exit__(&mut self, _args: &Bound<'_, PyTuple>) -> PyResult<bool> {
-            self.core
-                .as_mut()
-                .ok_or(PyValueError::new_err(
-                    "Cannot use object outside of context manager",
-                ))?
-                .finalize()
-                .map_err(|error| {
-                    PyRuntimeError::new_err(format!("Cannot finalize object: {error:?}"))
-                })?;
+        fn __exit__(&mut self, py: Python<'_>, _args: &Bound<'_, PyTuple>) -> PyResult<bool> {
+            let core = self.core.as_mut().ok_or(PyValueError::new_err(
+                "Cannot use object outside of context manager",
+            ))?;
+
+            let mut result = Ok(());
+            // Release GIL
+            py.detach(|| {
+                result = core.finalize();
+            });
+            result.map_err(|error| {
+                PyRuntimeError::new_err(format!("Cannot finalize object: {error:?}"))
+            })?;
+
             self.core = None; // Remove reference
             Ok(false)
         }
 
-        fn update(&mut self, document: Document) -> PyResult<()> {
-            self.core
-                .as_mut()
-                .ok_or(PyValueError::new_err(
-                    "Cannot use object outside of context manager",
-                ))?
-                .update(document)
-                .map_err(|error| {
-                    PyRuntimeError::new_err(format!("Cannot update using object: {error:?}"))
-                })?;
-            Ok(())
+        fn update(&mut self, py: Python<'_>, document: Document) -> PyResult<()> {
+            let core = self.core.as_mut().ok_or(PyValueError::new_err(
+                "Cannot use object outside of context manager",
+            ))?;
+            let mut result = Ok(());
+            // Release GIL
+            py.detach(|| {
+                result = core.update(document);
+            });
+            result.map_err(|error| {
+                PyRuntimeError::new_err(format!("Cannot update using object: {error:?}"))
+            })
         }
     }
 }
