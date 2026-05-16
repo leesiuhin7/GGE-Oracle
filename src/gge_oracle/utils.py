@@ -1,6 +1,6 @@
 import asyncio
-import lzma
-import shutil
+
+import zstandard as zstd
 
 
 async def cancel_futures(*futures: asyncio.Future) -> None:
@@ -10,8 +10,9 @@ async def cancel_futures(*futures: asyncio.Future) -> None:
 
 
 def decompress_file(src_path: str, dst_path: str) -> None:
+    decompressor = zstd.ZstdDecompressor()
     with (
-        lzma.open(src_path, "rb") as src_file,
+        open(src_path, "rb") as src_file,
         open(dst_path, "wb") as dst_file,
     ):
-        shutil.copyfileobj(src_file, dst_file)
+        decompressor.copy_stream(src_file, dst_file)

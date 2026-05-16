@@ -1,4 +1,5 @@
 mod data;
+mod encoder;
 mod index;
 mod types;
 mod updater_core;
@@ -14,8 +15,7 @@ mod native {
     use pyo3::prelude::*;
     use pyo3::types::PyTuple;
 
-    use xz2::write::XzEncoder;
-
+    use crate::encoder::Encoder;
     use crate::types::Document;
     use crate::updater_core;
 
@@ -31,7 +31,7 @@ mod native {
 
     #[pyclass]
     struct Updater {
-        core: Option<updater_core::Updater<BufReader<File>, XzEncoder<BufWriter<File>>>>,
+        core: Option<updater_core::Updater<BufReader<File>, Encoder<BufWriter<File>>>>,
         input_filename: String,
         output_filename: String,
     }
@@ -50,10 +50,12 @@ mod native {
         fn __enter__(&mut self, py: Python<'_>) -> PyResult<()> {
             let mut updater = updater_core::Updater::new();
             updater.set_input_buffer(BufReader::new(File::open(&*self.input_filename)?));
-            updater.set_output_buffer(XzEncoder::new(
-                BufWriter::new(File::create(&*self.output_filename)?),
-                6,
-            ));
+
+            let encoder = Encoder::new(BufWriter::new(File::create(&*self.output_filename)?), 9)
+                .map_err(|error| {
+                    PyRuntimeError::new_err(format!("Cannot initialize object: {error:?}"))
+                })?;
+            updater.set_output_buffer(encoder);
 
             let mut result = Ok(());
             // Release GIL as init is CPU-bound
