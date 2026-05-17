@@ -7,15 +7,21 @@ from dataclasses import dataclass
 import quart
 
 from gge_oracle import utils
+from gge_oracle.auth import Authenticator
 from gge_oracle.config import Config
 from gge_oracle.fetcher import Manager
 from gge_oracle.fetcher import config as fetcher_config
-from gge_oracle.storage import Storage
+from gge_oracle.storage import File, Storage
 from gge_oracle.updater import Updater
 
 logger = logging.getLogger(__name__)
 
 app = quart.Quart(__name__)
+
+
+class Services:
+    auth: Authenticator
+    file: File
 
 
 @app.route("/ping")
@@ -28,12 +34,28 @@ async def send_file_id() -> quart.Response:
     return quart.Response(os.environ.get("FILE_ID"))
 
 
+@app.route("/commands/upload")
+async def save_file() -> quart.Response:
+    otp = quart.request.args.get("otp")
+    if otp is None:
+        # Require OTP
+        return quart.Response(status=400)
+
+    if not Services.auth.verify(otp):
+        # OTP is incorrect
+        logger.info("Unauthorized upload command attempt failed.")
+        return quart.Response(status=401)
+
+    Services.file.force_next_upload()
+    logger.info("Upload command succeeded.")
+    return quart.Response(status=200)
+
+
 @dataclass
 class Context:
     config: Config
-    file_id: str
+    file: File
     manager: Manager
-    storage: Storage
 
 
 def set_fetcher_config(config: Config) -> None:
@@ -52,10 +74,12 @@ def set_logging_config(config: Config) -> None:
 
 async def update(context: Context) -> None:
     config = context.config
-    file_id = context.file_id
+    file = context.file
     manager = context.manager
-    storage = context.storage
 
+    # NOTE: Separate input and output files are used as the input file
+    # acts as a checkpoint to prevent corruption / data loss in cases
+    # where updating the output file fails midway
     DATA_DIR = os.path.abspath("data")
     INPUT_FILEPATH = os.path.join(DATA_DIR, "current.dat")
     DECOMPRESSED_INPUT_FILEPATH = os.path.join(DATA_DIR, "decompressed.dat")
@@ -64,7 +88,9 @@ async def update(context: Context) -> None:
     # Create data directory if it doesn't exist
     os.makedirs(DATA_DIR, exist_ok=True)
 
-    await asyncio.to_thread(storage.download, file_id, INPUT_FILEPATH)
+    # Downloads file if it doesn't exist locally
+    await asyncio.to_thread(file.download, INPUT_FILEPATH)
+
     # Decompress first to improve access speed
     await asyncio.to_thread(
         utils.decompress_file,
@@ -83,8 +109,10 @@ async def update(context: Context) -> None:
         ):
             await asyncio.to_thread(updater.update, document=player_info)
 
-    # Save output
-    await asyncio.to_thread(storage.upload, file_id, OUTPUT_FILEPATH)
+    # Upload output if sync is needed
+    await asyncio.to_thread(file.upload, OUTPUT_FILEPATH)
+    # Copy output as input for the next update
+    await asyncio.to_thread(utils.copy_file, OUTPUT_FILEPATH, INPUT_FILEPATH)
 
 
 async def main() -> None:
@@ -93,7 +121,16 @@ async def main() -> None:
     CONFIG_FILEPATH = os.environ.get("CONFIG_FILEPATH")
     CREDS_FILEPATH = os.environ.get("CREDS_FILEPATH")
     FILE_ID = os.environ.get("FILE_ID")
-    if CONFIG_FILEPATH is None or CREDS_FILEPATH is None or FILE_ID is None:
+    TOTP_URI = os.environ.get("TOTP_URI")
+
+    SYNC_INTERVAL = float(os.environ.get("SYNC_INTERVAL", 0))
+
+    if (
+        CONFIG_FILEPATH is None
+        or CREDS_FILEPATH is None
+        or FILE_ID is None
+        or TOTP_URI is None
+    ):
         logger.critical(
             "Mandatory environment variables are missing. Exiting.",
         )
@@ -110,6 +147,10 @@ async def main() -> None:
 
     storage = Storage()
     storage.authenticate(os.path.abspath(CREDS_FILEPATH))
+    file = storage.get_file(FILE_ID, sync_interval=SYNC_INTERVAL)
+
+    Services.auth = Authenticator(TOTP_URI)
+    Services.file = file
 
     PORT = int(os.environ.get("PORT", 10000))
     app_task = asyncio.create_task(app.run_task(host="0.0.0.0", port=PORT))
@@ -119,9 +160,8 @@ async def main() -> None:
         try:
             await update(Context(
                 config=config,
-                file_id=FILE_ID,
+                file=file,
                 manager=manager,
-                storage=storage,
             ))
         except Exception as e:
             logger.exception(e)

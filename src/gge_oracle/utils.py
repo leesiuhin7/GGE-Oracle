@@ -1,4 +1,5 @@
 import asyncio
+import shutil
 
 import zstandard as zstd
 
@@ -16,3 +17,7 @@ def decompress_file(src_path: str, dst_path: str) -> None:
         open(dst_path, "wb") as dst_file,
     ):
         decompressor.copy_stream(src_file, dst_file)
+
+
+def copy_file(src_path: str, dst_path: str) -> None:
+    shutil.copyfile(src_path, dst_path)
