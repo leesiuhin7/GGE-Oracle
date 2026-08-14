@@ -9,7 +9,7 @@ module-name = "gge_oracle.updater.native"
 name = "gge-oracle"
 version = "1.0.0"
 description = "A tool for archiving player history on GGE"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 
 dependencies = [
     "websockets==16.0", 
