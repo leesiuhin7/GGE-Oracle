@@ -109,10 +109,10 @@ async def update(context: Context) -> None:
         ):
             await asyncio.to_thread(updater.update, document=player_info)
 
-    # Upload output if sync is needed
-    await asyncio.to_thread(file.upload, OUTPUT_FILEPATH)
     # Copy output as input for the next update
     await asyncio.to_thread(utils.copy_file, OUTPUT_FILEPATH, INPUT_FILEPATH)
+    # Upload output if sync is needed
+    await asyncio.to_thread(file.upload, OUTPUT_FILEPATH)
 
 
 async def main() -> None:
